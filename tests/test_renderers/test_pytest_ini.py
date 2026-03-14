@@ -1,0 +1,162 @@
+"""Tests for pytest.ini renderer — INI-01 through INI-05, OUT-01, OUT-02."""
+import pytest
+from pytest_pw_config_gen.models import PlaywrightConfig
+from pytest_pw_config_gen.renderers import pytest_ini
+
+
+def test_section_header():
+    """INI-01: Output contains [pytest] section."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "[pytest]" in result
+
+
+def test_addopts_present():
+    """INI-02: Output contains addopts = block."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "addopts =" in result
+
+
+def test_browser_default():
+    """INI-02: --browser chromium present by default."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "--browser chromium" in result
+
+
+def test_multiple_browsers():
+    """INI-02: multiple --browser flags emitted when more than one browser selected."""
+    result = pytest_ini.render(PlaywrightConfig(browsers=["chromium", "firefox", "webkit"]))
+    assert "--browser chromium" in result
+    assert "--browser firefox" in result
+    assert "--browser webkit" in result
+
+
+def test_media_flags_default():
+    """INI-02: --tracing off, --video off, --screenshot off always present."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "--tracing off" in result
+    assert "--video off" in result
+    assert "--screenshot off" in result
+
+
+def test_headed_flag():
+    """INI-02: --headed added when headed=True."""
+    result = pytest_ini.render(PlaywrightConfig(headed=True))
+    assert "--headed" in result
+
+
+def test_headed_absent_by_default():
+    """INI-02: --headed not present when headed=False."""
+    result = pytest_ini.render(PlaywrightConfig(headed=False))
+    assert "--headed" not in result
+
+
+def test_base_url():
+    """INI-02: --base-url added when set."""
+    result = pytest_ini.render(PlaywrightConfig(base_url="https://example.com"))
+    assert "--base-url https://example.com" in result
+
+
+def test_base_url_absent_when_none():
+    """INI-02: --base-url absent when None."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "--base-url" not in result
+
+
+def test_slowmo():
+    """INI-02: --slowmo added when > 0."""
+    result = pytest_ini.render(PlaywrightConfig(slowmo=100))
+    assert "--slowmo 100" in result
+
+
+def test_slowmo_absent_by_default():
+    """INI-02: --slowmo absent when 0."""
+    result = pytest_ini.render(PlaywrightConfig(slowmo=0))
+    assert "--slowmo" not in result
+
+
+def test_device_preset():
+    """INI-03: --device with quoted name when device set."""
+    result = pytest_ini.render(PlaywrightConfig(device="iPhone 13"))
+    assert '--device "iPhone 13"' in result
+
+
+def test_device_absent_when_none():
+    """INI-03: --device absent when None."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "--device" not in result
+
+
+def test_reruns_with_comment():
+    """INI-04: --reruns N with inline comment about plugin."""
+    result = pytest_ini.render(PlaywrightConfig(reruns=2))
+    assert "--reruns 2" in result
+    assert "pytest-rerunfailures" in result
+
+
+def test_reruns_absent_when_zero():
+    """INI-04: --reruns absent when 0."""
+    result = pytest_ini.render(PlaywrightConfig(reruns=0))
+    assert "--reruns" not in result
+
+
+def test_workers_with_comment():
+    """INI-04: -n N with inline comment about xdist plugin."""
+    result = pytest_ini.render(PlaywrightConfig(workers=4))
+    assert "-n 4" in result
+    assert "pytest-xdist" in result
+
+
+def test_workers_absent_when_none():
+    """INI-04: -n absent when workers=None."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "-n " not in result
+
+
+def test_timeout_as_ini_option():
+    """INI-05: timeout emitted as separate ini option, not in addopts."""
+    result = pytest_ini.render(PlaywrightConfig(timeout=30))
+    assert "timeout = 30" in result
+
+
+def test_timeout_comment():
+    """OUT-02: timeout has inline comment about pytest-timeout plugin."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "pytest-timeout" in result
+
+
+def test_testpaths():
+    """INI-05: testpaths always emitted."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "testpaths = tests" in result
+
+
+def test_testpaths_custom():
+    """INI-05: testpaths reflects custom value."""
+    result = pytest_ini.render(PlaywrightConfig(testpaths=["e2e", "integration"]))
+    assert "testpaths = e2e integration" in result
+
+
+def test_markers_section():
+    """INI-05: markers section present when markers non-empty."""
+    result = pytest_ini.render(PlaywrightConfig(markers=["slow: mark slow tests"]))
+    assert "markers =" in result
+    assert "slow: mark slow tests" in result
+
+
+def test_markers_absent_when_empty():
+    """INI-05: markers section absent when empty list."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "markers =" not in result
+
+
+def test_header_comment():
+    """OUT-01: Generated-by header comment present."""
+    result = pytest_ini.render(PlaywrightConfig())
+    assert "# Generated by pytest-pw-config-gen" in result
+
+
+def test_inline_comments():
+    """OUT-02: Non-obvious options have inline comments."""
+    # timeout should have a comment
+    result = pytest_ini.render(PlaywrightConfig(timeout=30))
+    assert "pytest-timeout" in result
